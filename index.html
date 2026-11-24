@@ -517,3 +517,28 @@
         }
 
         const token = D
+        <div id="hostPanelBody" class="pt-2 border-t border-slate-800">
+
+  <!-- Password lock -->
+  <div id="hostLock" class="space-y-2">
+    <label for="hostPasswordInput" class="block text-xs font-semibold text-slate-300">Host Password</label>
+    <div class="flex gap-2">
+      <input id="hostPasswordInput" type="password" placeholder="Enter host password"
+        onkeydown="if(event.key==='Enter') unlockHostPanel()"
+        class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500" />
+      <button type="button" onclick="unlockHostPanel()"
+        class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer">
+        Unlock
+      </button>
+    </div>
+    <p id="hostLockError" class="text-xs text-rose-400 min-h-[1rem]"></p>
+  </div>
+
+  <!-- Existing host content, hidden until unlocked -->
+  <div id="hostPanelContent" class="hidden space-y-4">
+    <!-- ...your existing Event ID, Upload Party Photos and QR code blocks go here... -->
+
+    <button type="button" onclick="lockHostPanel()"
+      class="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer">Lock panel</button>
+  </div>
+</div>
