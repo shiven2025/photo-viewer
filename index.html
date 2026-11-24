@@ -28,7 +28,7 @@
         Event: <span id="activeEventBadge">default-party</span>
       </div>
       <div id="protocolNotice" class="hidden text-xs bg-amber-500/15 border border-amber-400/40 text-amber-200 rounded-lg p-2.5">
-        Note: Page <code>file://</code> se khula hai. Live camera ke liye <code>https</code> (GitHub Pages) ya local server use karein; ya <strong>Take Selfie &amp; Find My Pics</strong> se photo select karein.
+        Note: Aap page <code>file://</code> se khol rahe hain. Live camera ke liye <code>http://localhost</code>, <code>http://127.0.0.1</code>, ya <code>https</code> server use karein; ya neeche <strong>Take Selfie &amp; Find My Pics</strong> se photo upload karein.
       </div>
     </div>
 
@@ -53,7 +53,7 @@
       <button
         id="findPicsBtn"
         type="button"
-        onclick="window.findMyPics()"
+        onclick="findMyPics()"
         class="w-full py-3.5 px-4 rounded-xl bg-pink-600 hover:bg-pink-500 disabled:bg-slate-700 disabled:text-slate-400 font-bold text-white transition cursor-pointer"
       >
         Take Selfie &amp; Find My Pics
@@ -66,7 +66,7 @@
         accept="image/*"
         capture="user"
         class="hidden"
-        onchange="window.handleSelfieUpload(event)"
+        onchange="handleSelfieUpload(event)"
       />
 
       <!-- Live Camera Controls -->
@@ -74,7 +74,7 @@
         <button
           id="openCamBtn"
           type="button"
-          onclick="window.openLiveCamera()"
+          onclick="openLiveCamera()"
           class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold text-slate-100 transition cursor-pointer"
         >
           Open Live Camera
@@ -82,7 +82,7 @@
         <button
           id="snapBtn"
           type="button"
-          onclick="window.snapLiveFrame()"
+          onclick="snapLiveFrame()"
           disabled
           class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 text-sm font-semibold text-cyan-300 transition cursor-pointer"
         >
@@ -109,82 +109,96 @@
       </div>
     </section>
 
-    <!-- Locked Host Access Trigger -->
-    <div id="hostUnlockBox" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 text-center space-y-1">
+    <!-- Host Panel -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
       <button
         type="button"
-        onclick="window.unlockHostPanel()"
-        class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer"
+        onclick="toggleHostPanel()"
+        class="w-full flex items-center justify-between text-left font-bold text-white cursor-pointer"
       >
-        &#128274; Host Access (Enter Password)
+        <span>&#9660; Host Panel: Add Party Pics &amp; QR Code</span>
+        <span id="hostToggleIcon" class="text-xs text-slate-400">Hide/Show</span>
       </button>
-      <p id="hostAuthMessage" class="text-xs text-rose-400 min-h-[1rem]"></p>
-    </div>
 
-    <!-- Host Panel (Protected by Password) -->
-    <section id="hostPanelSection" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-      <div class="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onclick="window.toggleHostPanel()"
-          class="flex-1 flex items-center justify-between text-left font-bold text-white cursor-pointer"
-        >
-          <span>&#9660; Host Panel: Add Party Pics &amp; QR Code</span>
-          <span class="text-xs text-slate-400">Hide/Show</span>
-        </button>
-        <button
-          type="button"
-          onclick="window.lockHostPanel()"
-          class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-900/60 border border-slate-700 text-xs text-rose-300 cursor-pointer"
-        >
-          Lock
-        </button>
-      </div>
+      <div id="hostPanelBody" class="pt-2 border-t border-slate-800">
 
-      <div id="hostPanelBody" class="space-y-4 pt-2 border-t border-slate-800">
-        <div>
-          <label for="eventIdInput" class="block text-xs font-semibold text-slate-300 mb-1">Event ID</label>
+        <!-- Password Lock -->
+        <div id="hostLock" class="space-y-2">
+          <label for="hostPasswordInput" class="block text-xs font-semibold text-slate-300">Host Password</label>
           <div class="flex gap-2">
             <input
-              id="eventIdInput"
-              type="text"
-              value="default-party"
-              placeholder="e.g. rohit-birthday"
+              id="hostPasswordInput"
+              type="password"
+              placeholder="Enter host password"
+              autocomplete="off"
+              onkeydown="if (event.key === 'Enter') unlockHostPanel()"
               class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500"
             />
             <button
-              id="applyEventBtn"
               type="button"
-              onclick="window.applyHostEvent()"
+              onclick="unlockHostPanel()"
               class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer"
             >
-              Apply Event
+              Unlock
             </button>
           </div>
-          <p id="hostStatus" class="text-xs text-emerald-400 mt-1.5"></p>
+          <p id="hostLockError" class="text-xs text-rose-400 min-h-[1rem]"></p>
         </div>
 
-        <div>
-          <label for="partyPicsInput" class="block text-xs font-semibold text-slate-300 mb-1">
-            Upload Party Photos (Multiple allowed)
-          </label>
-          <input
-            id="partyPicsInput"
-            type="file"
-            accept="image/*"
-            multiple
-            onchange="window.handlePartyPhotosUpload(event)"
-            class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-cyan-300 hover:file:bg-slate-700 cursor-pointer"
-          />
-          <p id="indexedPhotosCount" class="text-xs text-slate-400 mt-1.5">Indexed event faces/photos: 0</p>
-        </div>
+        <!-- Host Content (hidden until unlocked) -->
+        <div id="hostPanelContent" class="hidden space-y-4">
+          <div>
+            <label for="eventIdInput" class="block text-xs font-semibold text-slate-300 mb-1">Event ID</label>
+            <div class="flex gap-2">
+              <input
+                id="eventIdInput"
+                type="text"
+                value="default-party"
+                placeholder="e.g. rohit-birthday"
+                class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500"
+              />
+              <button
+                id="applyEventBtn"
+                type="button"
+                onclick="applyHostEvent()"
+                class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer"
+              >
+                Apply Event
+              </button>
+            </div>
+            <p id="hostStatus" class="text-xs text-emerald-400 mt-1.5"></p>
+          </div>
 
-        <div class="bg-white text-slate-900 rounded-xl p-4 text-center space-y-2">
-          <p class="text-xs font-bold uppercase tracking-wide text-slate-700">
-            Print or display this QR code at the venue:
-          </p>
-          <canvas id="hostQrCanvas" class="mx-auto"></canvas>
-          <p id="eventUrlText" class="text-[11px] text-slate-600 break-all"></p>
+          <div>
+            <label for="partyPicsInput" class="block text-xs font-semibold text-slate-300 mb-1">
+              Upload Party Photos (Multiple allowed)
+            </label>
+            <input
+              id="partyPicsInput"
+              type="file"
+              accept="image/*"
+              multiple
+              onchange="handlePartyPhotosUpload(event)"
+              class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-cyan-300 hover:file:bg-slate-700 cursor-pointer"
+            />
+            <p id="indexedPhotosCount" class="text-xs text-slate-400 mt-1.5">Indexed event photos: 0</p>
+          </div>
+
+          <div class="bg-white text-slate-900 rounded-xl p-4 text-center space-y-2">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-700">
+              Print or display this QR code at the venue:
+            </p>
+            <canvas id="hostQrCanvas" class="mx-auto"></canvas>
+            <p id="eventUrlText" class="text-[11px] text-slate-600 break-all"></p>
+          </div>
+
+          <button
+            type="button"
+            onclick="lockHostPanel()"
+            class="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer"
+          >
+            Lock panel
+          </button>
         </div>
       </div>
     </section>
@@ -192,98 +206,109 @@
 
   <script>
     const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
-    const HOST_PASS = "admin123";
+
+    // SHA-256 hash of the host password (default password: party123)
+    // To change it, see the console snippet in the notes and paste the new hash here.
+    const HOST_PASSWORD_HASH = "823971eae668433fa91f72110025c96e324080074753ab1f83e2247971b7b1be";
 
     let modelsLoaded = false;
     let cameraStream = null;
     let currentSelfieDataUrl = null;
     let currentEventId = "default-party";
-    let isHostUnlocked = false;
 
+    // eventId -> Array of { src: string, descriptor: Float32Array }
     const eventFaceIndex = new Map();
 
-    function getEventEntries(eventId) {
-      const key = eventId || currentEventId;
-      if (!eventFaceIndex.has(key)) {
-        eventFaceIndex.set(key, []);
+    function getEventEntries(eventId = currentEventId) {
+      if (!eventFaceIndex.has(eventId)) {
+        eventFaceIndex.set(eventId, []);
       }
-      return eventFaceIndex.get(key);
+      return eventFaceIndex.get(eventId);
     }
 
     function updateIndexedCount() {
-      const count = getEventEntries(currentEventId).length;
-      document.getElementById("indexedPhotosCount").textContent = "Indexed event faces/photos: " + count;
+      const count = getEventEntries().length;
+      document.getElementById("indexedPhotosCount").textContent = `Indexed event faces/photos: ${count}`;
     }
 
-    function renderHostQrCode() {
-      const base = window.location.href.split("#")[0].split("?")[0];
-      const eventUrl = base + "?event=" + encodeURIComponent(currentEventId);
-      document.getElementById("eventUrlText").textContent = eventUrl;
+    // Host Panel Toggle
+    function toggleHostPanel() {
+      const body = document.getElementById("hostPanelBody");
+      body.classList.toggle("hidden");
+    }
 
-      const canvas = document.getElementById("hostQrCanvas");
-      if (window.QRCode && canvas) {
-        QRCode.toCanvas(canvas, eventUrl, { width: 170 }, function (err) {
-          if (err) console.error("Host QR error:", err);
-        });
+    // ---------- Host Panel Password ----------
+    async function sha256Hex(text) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function setHostUnlocked(unlocked) {
+      document.getElementById("hostLock").classList.toggle("hidden", unlocked);
+      document.getElementById("hostPanelContent").classList.toggle("hidden", !unlocked);
+      try {
+        if (unlocked) sessionStorage.setItem("hostUnlocked", "1");
+        else sessionStorage.removeItem("hostUnlocked");
+      } catch (e) {}
+    }
+
+    async function unlockHostPanel() {
+      const input = document.getElementById("hostPasswordInput");
+      const errorEl = document.getElementById("hostLockError");
+
+      if (!window.crypto || !crypto.subtle) {
+        errorEl.textContent = "Password check needs https or localhost.";
+        return;
       }
-    }
 
-    function unlockHostPanel() {
-      const authMsg = document.getElementById("hostAuthMessage");
-      const entered = window.prompt("Enter Host Password:");
-      if (entered === null) return;
-
-      if (entered === HOST_PASS) {
-        isHostUnlocked = true;
-        authMsg.textContent = "";
-        document.getElementById("hostUnlockBox").classList.add("hidden");
-        document.getElementById("hostPanelSection").classList.remove("hidden");
-        document.getElementById("hostPanelBody").classList.remove("hidden");
-        renderHostQrCode();
+      const hash = await sha256Hex(input.value);
+      if (hash === HOST_PASSWORD_HASH) {
+        input.value = "";
+        errorEl.textContent = "";
+        setHostUnlocked(true);
       } else {
-        authMsg.textContent = "Galat password! Kripya sahi Host Password dalein.";
+        errorEl.textContent = "Wrong password.";
       }
     }
 
     function lockHostPanel() {
-      isHostUnlocked = false;
-      document.getElementById("hostPanelSection").classList.add("hidden");
-      document.getElementById("hostUnlockBox").classList.remove("hidden");
-      document.getElementById("hostAuthMessage").textContent = "";
+      setHostUnlocked(false);
     }
+    // -----------------------------------------
 
-    function toggleHostPanel() {
-      if (!isHostUnlocked) {
-        unlockHostPanel();
-        return;
-      }
-      document.getElementById("hostPanelBody").classList.toggle("hidden");
-    }
-
+    // Required by Host Panel button & any inline callers
     function applyHostEvent() {
       const input = document.getElementById("eventIdInput");
-      const raw = input && input.value ? input.value.trim() : "";
+      const raw = (input && input.value ? input.value : "").trim();
       const cleanId = raw.replace(/[^a-zA-Z0-9-_]/g, "-") || "default-party";
 
       currentEventId = cleanId;
       if (input) input.value = cleanId;
       document.getElementById("activeEventBadge").textContent = cleanId;
-      document.getElementById("hostStatus").textContent = 'Active event set to "' + cleanId + '".';
+      document.getElementById("hostStatus").textContent = `Active event set to "${cleanId}".`;
 
       getEventEntries(cleanId);
       updateIndexedCount();
-      if (isHostUnlocked) {
-        renderHostQrCode();
+      renderHostQrCode();
+    }
+
+    function renderHostQrCode() {
+      const base = window.location.href.split("#")[0].split("?")[0];
+      const eventUrl = `${base}?event=${encodeURIComponent(currentEventId)}`;
+      document.getElementById("eventUrlText").textContent = eventUrl;
+
+      const canvas = document.getElementById("hostQrCanvas");
+      if (window.QRCode && canvas) {
+        QRCode.toCanvas(canvas, eventUrl, { width: 170 }, (err) => {
+          if (err) console.error("Host QR error:", err);
+        });
       }
     }
 
     async function loadFaceModels() {
       const statusEl = document.getElementById("aiStatus");
-      if (!window.faceapi) {
-        statusEl.textContent = "face-api script not loaded";
-        statusEl.className = "text-xs text-rose-400";
-        return;
-      }
       try {
         await Promise.all([
           faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
@@ -320,14 +345,14 @@
       const snapBtn = document.getElementById("snapBtn");
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        msgEl.textContent = "Is context mein live camera available nahi hai. Selfie select karein.";
+        msgEl.textContent = "Is browser/context mein live camera available nahi hai. Upload button use karein.";
         document.getElementById("selfieFileInput").click();
         return;
       }
 
       try {
         if (cameraStream) {
-          cameraStream.getTracks().forEach(function (t) { t.stop(); });
+          cameraStream.getTracks().forEach((t) => t.stop());
         }
         cameraStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user" },
@@ -341,7 +366,7 @@
         msgEl.textContent = "Live camera on hai. Apna face set karke 'Snap Live Frame' dabayein.";
       } catch (err) {
         console.error("Camera error:", err);
-        msgEl.textContent = "Camera open nahi ho paya. Selfie picker khul raha hai...";
+        msgEl.textContent = "Camera open nahi ho paya (permission/HTTPS check karein). Gallery/Camera picker khul raha hai...";
         document.getElementById("selfieFileInput").click();
       }
     }
@@ -360,7 +385,7 @@
 
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       if (cameraStream) {
-        cameraStream.getTracks().forEach(function (t) { t.stop(); });
+        cameraStream.getTracks().forEach((t) => t.stop());
         cameraStream = null;
       }
       snapBtn.disabled = true;
@@ -369,19 +394,19 @@
     }
 
     function readFileAsDataUrl(file) {
-      return new Promise(function (resolve, reject) {
+      return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = function () { resolve(reader.result); };
+        reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
     }
 
     function loadHtmlImage(src) {
-      return new Promise(function (resolve, reject) {
+      return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
-        img.onload = function () { resolve(img); };
+        img.onload = () => resolve(img);
         img.onerror = reject;
         img.src = src;
       });
@@ -396,11 +421,6 @@
     }
 
     async function handlePartyPhotosUpload(event) {
-      if (!isHostUnlocked) {
-        unlockHostPanel();
-        return;
-      }
-
       const files = Array.from(event.target.files || []);
       if (!files.length) return;
 
@@ -410,7 +430,7 @@
         return;
       }
 
-      hostStatus.textContent = files.length + " party photos scan ho rahi hain...";
+      hostStatus.textContent = `${files.length} party photos scan ho rahi hain...`;
       const entries = getEventEntries(currentEventId);
       let facesFound = 0;
 
@@ -436,10 +456,11 @@
       }
 
       updateIndexedCount();
-      hostStatus.textContent = 'Done! "' + currentEventId + '" mein ' + facesFound + " faces index hue.";
+      hostStatus.textContent = `Done! "${currentEventId}" mein ${facesFound} faces index hue.`;
     }
 
     async function findMyPics() {
+      const msgEl = document.getElementById("scanMessage");
       const video = document.getElementById("webcam");
       const isLiveVideoVisible = !video.classList.contains("hidden") && video.videoWidth > 0;
 
@@ -468,7 +489,7 @@
 
       const entries = getEventEntries(currentEventId);
       if (!entries.length) {
-        msgEl.textContent = 'Event "' + currentEventId + '" mein abhi koi indexed photo nahi hai. Host Panel se party photos upload karein.';
+        msgEl.textContent = `Event "${currentEventId}" mein abhi koi indexed photo nahi hai. Host Panel se party photos upload karein.`;
         return;
       }
 
@@ -494,51 +515,4 @@
         for (const item of entries) {
           const dist = faceapi.euclideanDistance(selfieDetection.descriptor, item.descriptor);
           if (dist < threshold) {
-            matchedSources.add(item.src);
-          }
-        }
-
-        gallery.innerHTML = "";
-        if (!matchedSources.size) {
-          matchedSection.classList.add("hidden");
-          msgEl.textContent = "Aapki koi photo match nahi hui.";
-          btn.disabled = false;
-          return;
-        }
-
-        const matchedArray = Array.from(matchedSources);
-        for (const src of matchedArray) {
-          const card = document.createElement("div");
-          card.className = "bg-slate-950 border border-slate-800 rounded-lg overflow-hidden p-1.5";
-          card.innerHTML =
-            '<img src="' + src + '" alt="Matched photo" class="w-full h-32 object-cover rounded" />' +
-            '<a href="' + src + '" download="partysnap-photo.jpg" class="mt-1.5 block text-center text-xs py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Download</a>';
-          gallery.appendChild(card);
-        }
-
-        const token = D
-        <div id="hostPanelBody" class="pt-2 border-t border-slate-800">
-
-  <!-- Password lock -->
-  <div id="hostLock" class="space-y-2">
-    <label for="hostPasswordInput" class="block text-xs font-semibold text-slate-300">Host Password</label>
-    <div class="flex gap-2">
-      <input id="hostPasswordInput" type="password" placeholder="Enter host password"
-        onkeydown="if(event.key==='Enter') unlockHostPanel()"
-        class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500" />
-      <button type="button" onclick="unlockHostPanel()"
-        class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer">
-        Unlock
-      </button>
-    </div>
-    <p id="hostLockError" class="text-xs text-rose-400 min-h-[1rem]"></p>
-  </div>
-
-  <!-- Existing host content, hidden until unlocked -->
-  <div id="hostPanelContent" class="hidden space-y-4">
-    <!-- ...your existing Event ID, Upload Party Photos and QR code blocks go here... -->
-
-    <button type="button" onclick="lockHostPanel()"
-      class="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer">Lock panel</button>
-  </div>
-</div>
+            matchedSources.ad
