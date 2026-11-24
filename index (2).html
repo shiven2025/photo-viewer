@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PartySnap AI — Find Your Party Photos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <style>
+    body {
+      background: #070b14;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #webcam {
+      transform: scaleX(-1);
+    }
+    /* Keeps show/hide working even if the Tailwind CDN is slow or blocked */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen py-6 px-4">
+  <div class="max-w-xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="text-center space-y-2">
+      <h1 class="text-3xl font-extrabold tracking-tight text-pink-500">PartySnap AI</h1>
+      <p class="text-sm text-slate-300">Scan a quick selfie to get every party photo you're in.</p>
+      <div class="inline-block px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium text-cyan-300">
+        Event: <span id="activeEventBadge">default-party</span>
+      </div>
+      <div id="protocolNotice" class="hidden text-xs bg-amber-500/15 border border-amber-400/40 text-amber-200 rounded-lg p-2.5">
+        Note: Aap page <code>file://</code> se khol rahe hain. Live camera ke liye <code>http://localhost</code>, <code>http://127.0.0.1</code>, ya <code>https</code> server use karein; ya neeche <strong>Take Selfie &amp; Find My Pics</strong> se photo upload karein.
+      </div>
+    </div>
+
+    <!-- 1. Scan Your Face -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">1. Scan Your Face</h2>
+        <span id="aiStatus" class="text-xs text-amber-300">Loading AI models...</span>
+      </div>
+
+      <!-- Preview Box -->
+      <div class="relative w-full aspect-square max-h-96 mx-auto bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex items-center justify-center">
+        <video id="webcam" autoplay playsinline muted class="hidden w-full h-full object-cover"></video>
+        <img id="selfiePreview" alt="Selfie preview" class="hidden w-full h-full object-cover" />
+        <canvas id="captureCanvas" class="hidden"></canvas>
+        <p id="previewPlaceholder" class="text-sm text-slate-400 px-4 text-center">
+          Take a quick selfie to find all your party photos
+        </p>
+      </div>
+
+      <!-- Primary Action -->
+      <button
+        id="findPicsBtn"
+        type="button"
+        onclick="findMyPics()"
+        class="w-full py-3.5 px-4 rounded-xl bg-pink-600 hover:bg-pink-500 disabled:bg-slate-700 disabled:text-slate-400 font-bold text-white transition cursor-pointer"
+      >
+        Take Selfie &amp; Find My Pics
+      </button>
+
+      <!-- Hidden File Input for Phone Camera / Gallery Fallback -->
+      <input
+        id="selfieFileInput"
+        type="file"
+        accept="image/*"
+        capture="user"
+        class="hidden"
+        onchange="handleSelfieUpload(event)"
+      />
+
+      <!-- Live Camera Controls -->
+      <div class="grid grid-cols-2 gap-3">
+        <button
+          id="openCamBtn"
+          type="button"
+          onclick="openLiveCamera()"
+          class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-semibold text-slate-100 transition cursor-pointer"
+        >
+          Open Live Camera
+        </button>
+        <button
+          id="snapBtn"
+          type="button"
+          onclick="snapLiveFrame()"
+          disabled
+          class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 text-sm font-semibold text-cyan-300 transition cursor-pointer"
+        >
+          Snap Live Frame
+        </button>
+      </div>
+
+      <p id="scanMessage" class="text-sm text-center text-cyan-300 min-h-[1.25rem]"></p>
+    </section>
+
+    <!-- User Personal Matched Photos + Personal QR -->
+    <section id="matchedSection" class="hidden bg-slate-900/90 border border-emerald-700/50 rounded-2xl p-5 shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-emerald-400">Your Matched Photos</h2>
+        <span id="matchCountBadge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300"></span>
+      </div>
+
+      <div id="matchedGallery" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+
+      <div class="bg-white text-slate-900 rounded-xl p-4 text-center space-y-2">
+        <p class="text-sm font-bold">Scan QR for Your Personal Gallery Link</p>
+        <canvas id="userQrCanvas" class="mx-auto"></canvas>
+        <p id="personalAlbumLinkText" class="text-[11px] text-slate-600 break-all"></p>
+      </div>
+    </section>
+
+    <!-- Host Panel -->
+    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+      <button
+        type="button"
+        onclick="toggleHostPanel()"
+        class="w-full flex items-center justify-between text-left font-bold text-white cursor-pointer"
+      >
+        <span>&#9660; Host Panel: Add Party Pics &amp; QR Code</span>
+        <span id="hostToggleIcon" class="text-xs text-slate-400">Hide/Show</span>
+      </button>
+
+      <div id="hostPanelBody" class="pt-2 border-t border-slate-800">
+
+        <!-- Password Lock -->
+        <div id="hostLock" class="space-y-2">
+          <label for="hostPasswordInput" class="block text-xs font-semibold text-slate-300">Host Password</label>
+          <div class="flex gap-2">
+            <input
+              id="hostPasswordInput"
+              type="password"
+              placeholder="Enter host password"
+              autocomplete="off"
+              onkeydown="if (event.key === 'Enter') unlockHostPanel()"
+              class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500"
+            />
+            <button
+              type="button"
+              onclick="unlockHostPanel()"
+              class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer"
+            >
+              Unlock
+            </button>
+          </div>
+          <p id="hostLockError" class="text-xs text-rose-400 min-h-[1rem]"></p>
+        </div>
+
+        <!-- Host Content (hidden until unlocked) -->
+        <div id="hostPanelContent" class="hidden space-y-4">
+          <div>
+            <label for="eventIdInput" class="block text-xs font-semibold text-slate-300 mb-1">Event ID</label>
+            <div class="flex gap-2">
+              <input
+                id="eventIdInput"
+                type="text"
+                value="default-party"
+                placeholder="e.g. rohit-birthday"
+                class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-pink-500"
+              />
+              <button
+                id="applyEventBtn"
+                type="button"
+                onclick="applyHostEvent()"
+                class="px-4 py-2 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold text-white cursor-pointer"
+              >
+                Apply Event
+              </button>
+            </div>
+            <p id="hostStatus" class="text-xs text-emerald-400 mt-1.5"></p>
+          </div>
+
+          <div>
+            <label for="partyPicsInput" class="block text-xs font-semibold text-slate-300 mb-1">
+              Upload Party Photos (Multiple allowed)
+            </label>
+            <input
+              id="partyPicsInput"
+              type="file"
+              accept="image/*"
+              multiple
+              onchange="handlePartyPhotosUpload(event)"
+              class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-cyan-300 hover:file:bg-slate-700 cursor-pointer"
+            />
+            <p id="indexedPhotosCount" class="text-xs text-slate-400 mt-1.5">Indexed event photos: 0</p>
+          </div>
+
+          <div class="bg-white text-slate-900 rounded-xl p-4 text-center space-y-2">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-700">
+              Print or display this QR code at the venue:
+            </p>
+            <canvas id="hostQrCanvas" class="mx-auto"></canvas>
+            <p id="eventUrlText" class="text-[11px] text-slate-600 break-all"></p>
+          </div>
+
+          <button
+            type="button"
+            onclick="lockHostPanel()"
+            class="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer"
+          >
+            Lock panel
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Shows JavaScript errors on screen (useful on phones where there is no console)
+    window.addEventListener("error", (e) => {
+      let box = document.getElementById("errorBanner");
+      if (!box) {
+        box = document.createElement("div");
+        box.id = "errorBanner";
+        box.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;background:#7f1d1d;color:#fff;font-size:12px;padding:8px 10px;border-radius:8px;";
+        document.body.appendChild(box);
+      }
+      box.textContent = "Error: " + (e.message || "unknown") + (e.lineno ? " (line " + e.lineno + ")" : "");
+    });
+
+    const MODEL_URL = "https://justadudewhohacks.github.io/face-api.js/models";
+
+    // SHA-256 hash of the host password (default password: party123)
+    // To change it, see the console snippet in the notes and paste the new hash here.
+    const HOST_PASSWORD_HASH = "823971eae668433fa91f72110025c96e324080074753ab1f83e2247971b7b1be";
+
+    let modelsLoaded = false;
+    let cameraStream = null;
+    let currentSelfieDataUrl = null;
+    let currentEventId = "default-party";
+
+    // eventId -> Array of { src: string, descriptor: Float32Array }
+    const eventFaceIndex = new Map();
+
+    function getEventEntries(eventId = currentEventId) {
+      if (!eventFaceIndex.has(eventId)) {
+        eventFaceIndex.set(eventId, []);
+      }
+      return eventFaceIndex.get(eventId);
+    }
+
+    function updateIndexedCount() {
+      const count = getEventEntries().length;
+      document.getElementById("indexedPhotosCount").textContent = `Indexed event faces/photos: ${count}`;
+    }
+
+    // Host Panel Toggle
+    function toggleHostPanel() {
+      const body = document.getElementById("hostPanelBody");
+      body.classList.toggle("hidden");
+    }
+
+    // ---------- Host Panel Password ----------
+    async function sha256Hex(text) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    function setHostUnlocked(unlocked) {
+      document.getElementById("hostLock").classList.toggle("hidden", unlocked);
+      document.getElementById("hostPanelContent").classList.toggle("hidden", !unlocked);
+      try {
+        if (unlocked) sessionStorage.setItem("hostUnlocked", "1");
+        else sessionStorage.removeItem("hostUnlocked");
+      } catch (e) {}
+    }
+
+    async function unlockHostPanel() {
+      const input = document.getElementById("hostPasswordInput");
+      const errorEl = document.getElementById("hostLockError");
+
+      if (!window.crypto || !crypto.subtle) {
+        errorEl.textContent = "Password check needs https or localhost.";
+        return;
+      }
+
+      const hash = await sha256Hex(input.value);
+      if (hash === HOST_PASSWORD_HASH) {
+        input.value = "";
+        errorEl.textContent = "";
+        setHostUnlocked(true);
+      } else {
+        errorEl.textContent = "Wrong password.";
+      }
+    }
+
+    function lockHostPanel() {
+      setHostUnlocked(false);
+    }
+    // -----------------------------------------
+
+    // Required by Host Panel button & any inline callers
+    function applyHostEvent() {
+      const input = document.getElementById("eventIdInput");
+      const raw = (input && input.value ? input.value : "").trim();
+      const cleanId = raw.replace(/[^a-zA-Z0-9-_]/g, "-") || "default-party";
+
+      currentEventId = cleanId;
+      if (input) input.value = cleanId;
+      document.getElementById("activeEventBadge").textContent = cleanId;
+      document.getElementById("hostStatus").textContent = `Active event set to "${cleanId}".`;
+
+      getEventEntries(cleanId);
+      updateIndexedCount();
+      renderHostQrCode();
+    }
+
+    function renderHostQrCode() {
+      const base = window.location.href.split("#")[0].split("?")[0];
+      const eventUrl = `${base}?event=${encodeURIComponent(currentEventId)}`;
+      document.getElementById("eventUrlText").textContent = eventUrl;
+
+      const canvas = document.getElementById("hostQrCanvas");
+      if (window.QRCode && canvas) {
+        QRCode.toCanvas(canvas, eventUrl, { width: 170 }, (err) => {
+          if (err) console.error("Host QR error:", err);
+        });
+      }
+    }
+
+    async function loadFaceModels() {
+      const statusEl = document.getElementById("aiStatus");
+      try {
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+        modelsLoaded = true;
+        statusEl.textContent = "AI Ready";
+        statusEl.className = "text-xs text-emerald-400";
+      } catch (err) {
+        console.error("Model load failed:", err);
+        statusEl.textContent = "AI model load failed (check internet)";
+        statusEl.className = "text-xs text-rose-400";
+      }
+    }
+
+    function showPreviewImage(dataUrl) {
+      currentSelfieDataUrl = dataUrl;
+      const video = document.getElementById("webcam");
+      const img = document.getElementById("selfiePreview");
+      const placeholder = document.getElementById("previewPlaceholder");
+
+      video.classList.add("hidden");
+      placeholder.classList.add("hidden");
+      img.src = dataUrl;
+      img.classList.remove("hidden");
+    }
+
+    async function openLiveCamera() {
+      const msgEl = document.getElementById("scanMessage");
+      const video = document.getElementById("webcam");
+      const img = document.getElementById("selfiePreview");
+      const placeholder = document.getElementById("previewPlaceholder");
+      const snapBtn = document.getElementById("snapBtn");
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        msgEl.textContent = "Is browser/context mein live camera available nahi hai. Upload button use karein.";
+        document.getElementById("selfieFileInput").click();
+        return;
+      }
+
+      try {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach((t) => t.stop());
+        }
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false
+        });
+        video.srcObject = cameraStream;
+        img.classList.add("hidden");
+        placeholder.classList.add("hidden");
+        video.classList.remove("hidden");
+        snapBtn.disabled = false;
+        msgEl.textContent = "Live camera on hai. Apna face set karke 'Snap Live Frame' dabayein.";
+      } catch (err) {
+        console.error("Camera error:", err);
+        msgEl.textContent = "Camera open nahi ho paya (permission/HTTPS check karein). Gallery/Camera picker khul raha hai...";
+        document.getElementById("selfieFileInput").click();
+      }
+    }
+
+    function snapLiveFrame() {
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("captureCanvas");
+      const snapBtn = document.getElementById("snapBtn");
+
+      if (!video.srcObject || !video.videoWidth) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop());
+        cameraStream = null;
+      }
+      snapBtn.disabled = true;
+      showPreviewImage(dataUrl);
+      document.getElementById("scanMessage").textContent = "Selfie capture ho gayi! Ab 'Take Selfie & Find My Pics' dabayein.";
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function loadHtmlImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    async function handleSelfieUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const dataUrl = await readFileAsDataUrl(file);
+      showPreviewImage(dataUrl);
+      await runFaceMatch(dataUrl);
+    }
+
+    async function handlePartyPhotosUpload(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+
+      const hostStatus = document.getElementById("hostStatus");
+      if (!modelsLoaded) {
+        hostStatus.textContent = "AI models abhi load ho rahe hain, thoda ruk kar upload karein.";
+        return;
+      }
+
+      hostStatus.textContent = `${files.length} party photos scan ho rahi hain...`;
+      const entries = getEventEntries(currentEventId);
+      let facesFound = 0;
+
+      for (const file of files) {
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const imgEl = await loadHtmlImage(dataUrl);
+          const detections = await faceapi
+            .detectAllFaces(imgEl)
+            .withFaceLandmarks()
+            .withFaceDescriptors();
+
+          for (const det of detections) {
+            entries.push({
+              src: dataUrl,
+              descriptor: det.descriptor
+            });
+            facesFound++;
+          }
+        } catch (err) {
+          console.error("Error indexing photo:", file.name, err);
+        }
+      }
+
+      updateIndexedCount();
+      hostStatus.textContent = `Done! "${currentEventId}" mein ${facesFound} faces index hue.`;
+    }
+
+    async function findMyPics() {
+      const msgEl = document.getElementById("scanMessage");
+      const video = document.getElementById("webcam");
+      const isLiveVideoVisible = !video.classList.contains("hidden") && video.videoWidth > 0;
+
+      if (isLiveVideoVisible) {
+        snapLiveFrame();
+      }
+
+      if (!currentSelfieDataUrl) {
+        document.getElementById("selfieFileInput").click();
+        return;
+      }
+
+      await runFaceMatch(currentSelfieDataUrl);
+    }
+
+    async function runFaceMatch(selfieDataUrl) {
+      const msgEl = document.getElementById("scanMessage");
+      const btn = document.getElementById("findPicsBtn");
+      const matchedSection = document.getElementById("matchedSection");
+      const gallery = document.getElementById("matchedGallery");
+
+      if (!modelsLoaded) {
+        msgEl.textContent = "AI models abhi load ho rahe hain, kripya 2-3 second rukhein.";
+        return;
+      }
+
+      const entries = getEventEntries(currentEventId);
+      if (!entries.length) {
+        msgEl.textContent = `Event "${currentEventId}" mein abhi koi indexed photo nahi hai. Host Panel se party photos upload karein.`;
+        return;
+      }
+
+      btn.disabled = true;
+      msgEl.textContent = "Chehra match kiya ja raha hai...";
+
+      try {
+        const selfieImg = await loadHtmlImage(selfieDataUrl);
+        const selfieDetection = await faceapi
+          .detectSingleFace(selfieImg)
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (!selfieDetection) {
+          msgEl.textContent = "Selfie mein chehra saaf nahi dikha. Clear selfie try karein.";
+          btn.disabled = false;
+          return;
+        }
+
+        const threshold = 0.58;
+        const matchedSources = new Set();
+
+        for (const item of entries) {
+          const dist = faceapi.euclideanDistance(selfieDetection.descriptor, item.descriptor);
+          if (dist < threshold) {
+            matchedSources.add(item.src);
+          }
+        }
+
+        gallery.innerHTML = "";
+        if (!matchedSources.size) {
+          matchedSection.classList.add("hidden");
+          msgEl.textContent = "Aapki koi photo match nahi hui.";
+          btn.disabled = false;
+          return;
+        }
+
+        const matchedArray = Array.from(matchedSources);
+        for (const src of matchedArray) {
+          const card = document.createElement("div");
+          card.className = "bg-slate-950 border border-slate-800 rounded-lg overflow-hidden p-1.5";
+          card.innerHTML = `
+            <img src="${src}" alt="Matched photo" class="w-full h-32 object-cover rounded" />
+            <a href="${src}" download="partysnap-photo.jpg" class="mt-1.5 block text-center text-xs py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+              Download
+            </a>
+          `;
+          gallery.appendChild(card);
+        }
+
+        const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        const base = window.location.href.split("#")[0].split("?")[0];
+        const personalLink = `${base}?event=${encodeURIComponent(currentEventId)}&user=${token}`;
+
+        document.getElementById("matchCountBadge").textContent = `${matchedArray.length} photo(s)`;
+        document.getElementById("personalAlbumLinkText").textContent = personalLink;
+        matchedSection.classList.remove("hidden");
+
+        if (window.QRCode) {
+          QRCode.toCanvas(document.getElementById("userQrCanvas"), personalLink, { width: 170 });
+        }
+
+        msgEl.textContent = `${matchedArray.length} matched photos mil gayi!`;
+      } catch (err) {
+        console.error("Match error:", err);
+        msgEl.textContent = "Face match karte waqt error aaya.";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      if (window.location.protocol === "file:") {
+        document.getElementById("protocolNotice").classList.remove("hidden");
+      }
+
+      // Keep host panel unlocked for this browser tab after a successful login
+      try {
+        if (sessionStorage.getItem("hostUnlocked") === "1") setHostUnlocked(true);
+      } catch (e) {}
+
+      const params = new URLSearchParams(window.location.search);
+      const urlEvent = params.get("event");
+      if (urlEvent) {
+        document.getElementById("eventIdInput").value = urlEvent;
+      }
+
+      applyHostEvent();
+      loadFaceModels();
+    });
+  </script>
+</body>
+</html>
